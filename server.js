@@ -13,11 +13,35 @@ const CWA_API_KEY = process.env.CWA_API_KEY;
 // API 地區代碼與 CWA 縣市名稱的對應表
 // 這允許前端使用簡潔的代碼 (如 'kaohsiung') 來查詢後端
 const LOCATION_MAP = {
-  'kaohsiung': '高雄市',
+  // 東部及離島
+  'yilan': '宜蘭縣',
+  'hualien': '花蓮縣',
+  'taitung': '臺東縣',
+  'penghu': '澎湖縣',
+  'kinmen': '金門縣',
+  'lienchiang': '連江縣',
+  
+  // 北部
   'taipei': '臺北市',
+  'newtaipei': '新北市',
+  'taoyuan': '桃園市',
+  'keelung': '基隆市',
+  
+  // 中部
   'taichung': '臺中市',
-  'miaoli': '苗栗縣', // 沿用您原程式碼中的苗栗縣
-  // 可根據 CWA F-C0032-001 資料集的縣市名稱繼續擴充
+  'hsinchucounty': '新竹縣',
+  'hsinchucity': '新竹市',
+  'miaoli': '苗栗縣',
+  'changhua': '彰化縣',
+  'nantou': '南投縣',
+  
+  // 南部
+  'yunlin': '雲林縣',
+  'chiayicounty': '嘉義縣',
+  'chiayicity': '嘉義市',
+  'tainan': '臺南市',
+  'kaohsiung': '高雄市',
+  'pingtung': '屏東縣',
 };
 
 // Middleware
