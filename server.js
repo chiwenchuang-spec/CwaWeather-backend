@@ -10,19 +10,43 @@ const PORT = process.env.PORT || 3000;
 const CWA_API_BASE_URL = "https://opendata.cwa.gov.tw/api";
 const CWA_API_KEY = process.env.CWA_API_KEY;
 
+// API 地區代碼與 CWA 縣市名稱的對應表
+// 這允許前端使用簡潔的代碼 (如 'kaohsiung') 來查詢後端
+const LOCATION_MAP = {
+  'kaohsiung': '高雄市',
+  'taipei': '臺北市',
+  'taichung': '臺中市',
+  'miaoli': '苗栗縣', // 沿用您原程式碼中的苗栗縣
+  // 可根據 CWA F-C0032-001 資料集的縣市名稱繼續擴充
+};
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 /**
- * 取得高雄天氣預報
- * CWA 氣象資料開放平臺 API
- * 使用「一般天氣預報-今明 36 小時天氣預報」資料集
+ * 取得指定地區的天氣預報
+ * 呼叫 CWA「一般天氣預報-今明 36 小時天氣預報」資料集 (F-C0032-001)
+ * @param {string} location - 地區代碼，例如 'kaohsiung'
  */
-const getKaohsiungWeather = async (req, res) => {
+const getWeatherByLocation = async (req, res) => {
+  // 從 URL 參數中取得地區代碼 (例如: 'kaohsiung')
+  const locationCode = req.params.location;
+  // 查找對應的 CWA 縣市名稱 (例如: '高雄市')
+  const locationName = LOCATION_MAP[locationCode];
+
+  // 1. 檢查地點是否合法或是否存在於對應表
+  if (!locationName) {
+    return res.status(400).json({
+      error: "輸入地區代碼無效",
+      message: `地區代碼 '${locationCode}' 尚未定義或不支援。`,
+      supported_locations: Object.keys(LOCATION_MAP),
+    });
+  }
+
   try {
-    // 檢查是否有設定 API Key
+    // 2. 檢查是否有設定 API Key
     if (!CWA_API_KEY) {
       return res.status(500).json({
         error: "伺服器設定錯誤",
@@ -30,36 +54,34 @@ const getKaohsiungWeather = async (req, res) => {
       });
     }
 
-    // 呼叫 CWA API - 一般天氣預報（36小時）
-    // API 文件: https://opendata.cwa.gov.tw/dist/opendata-swagger.html
+    // 3. 呼叫 CWA API - 一般天氣預報（36小時），使用動態 locationName
     const response = await axios.get(
       `${CWA_API_BASE_URL}/v1/rest/datastore/F-C0032-001`,
       {
         params: {
           Authorization: CWA_API_KEY,
-          locationName: "苗栗縣",
+          locationName: locationName, // 使用動態縣市名稱
         },
       }
     );
 
-    // 取得天氣資料
+    // 4. 取得天氣資料
     const locationData = response.data.records.location[0];
 
     if (!locationData) {
       return res.status(404).json({
         error: "查無資料",
-        message: "無法取得天氣資料",
+        message: `無法取得 ${locationName} 的天氣資料`,
       });
     }
 
-    // 整理天氣資料
+    // 5. 整理天氣資料 (與您原有的邏輯相同)
     const weatherData = {
       city: locationData.locationName,
       updateTime: response.data.records.datasetDescription,
       forecasts: [],
     };
 
-    // 解析天氣要素
     const weatherElements = locationData.weatherElement;
     const timeCount = weatherElements[0].time.length;
 
@@ -82,13 +104,14 @@ const getKaohsiungWeather = async (req, res) => {
             forecast.weather = value.parameterName;
             break;
           case "PoP":
-            forecast.rain = value.parameterName + "%";
+            // 確保有資料，若無則設為 0
+            forecast.rain = (value ? value.parameterName : "0") + "%"; 
             break;
           case "MinT":
-            forecast.minTemp = value.parameterName + "°C";
+            forecast.minTemp = (value ? value.parameterName : "-") + "°C";
             break;
           case "MaxT":
-            forecast.maxTemp = value.parameterName + "°C";
+            forecast.maxTemp = (value ? value.parameterName : "-") + "°C";
             break;
           case "CI":
             forecast.comfort = value.parameterName;
@@ -110,7 +133,7 @@ const getKaohsiungWeather = async (req, res) => {
     console.error("取得天氣資料失敗:", error.message);
 
     if (error.response) {
-      // API 回應錯誤
+      // CWA API 回應錯誤
       return res.status(error.response.status).json({
         error: "CWA API 錯誤",
         message: error.response.data.message || "無法取得天氣資料",
@@ -131,7 +154,7 @@ app.get("/", (req, res) => {
   res.json({
     message: "歡迎使用 CWA 天氣預報 API",
     endpoints: {
-      kaohsiung: "/api/weather/kaohsiung",
+      dynamic_weather: "/api/weather/:location", // 新增動態路由說明
       health: "/api/health",
     },
   });
@@ -141,8 +164,8 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", timestamp: new Date().toISOString() });
 });
 
-// 取得天氣預報
-app.get("/api/weather/kaohsiung", getKaohsiungWeather);
+// 取得天氣預報：將固定路由改為動態路由
+app.get("/api/weather/:location", getWeatherByLocation);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
